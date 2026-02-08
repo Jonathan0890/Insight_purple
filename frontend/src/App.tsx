@@ -1,11 +1,13 @@
+import { Outlet } from "react-router-dom";
 import "./App.css";
+import { MainLayout } from "./components/layout/MainLayout";
 
 function App() {
 
   return (
-    <>
-      <h5 className="text-1xl font-bold underline">Hello world!</h5>
-    </>
+    <MainLayout>
+      <Outlet/>
+    </MainLayout>
   );
 }
 
