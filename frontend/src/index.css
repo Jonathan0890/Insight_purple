@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+.MuiTableCell-root {
+  padding: 16px 24px !important;
+}
+.MuiTableHead-root .MuiTableCell-root {
+  background-color: #f5f5f5;
+  font-weight: 600;
+}

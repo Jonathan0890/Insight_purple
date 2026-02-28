@@ -7,12 +7,16 @@ import { routes } from './router';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import 'dayjs/locale/es'
+import { NotificationProvider } from './context/NotificationContext';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
       <AppThemeProvider>
-        <RouterProvider router={routes} />
+        <NotificationProvider>
+          <RouterProvider router={routes} />
+
+        </NotificationProvider>
       </AppThemeProvider>
     </LocalizationProvider>
   </React.StrictMode>

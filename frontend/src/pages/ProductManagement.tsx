@@ -1,14 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-    Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
     Button,
-    IconButton,
     Dialog,
     DialogTitle,
     DialogContent,
@@ -16,8 +8,37 @@ import {
     TextField,
     Stack,
     Typography,
+    Chip,
+    Box,
+    Paper,
+    Alert,
+    IconButton,
+    InputAdornment,
+    Grid,
+    Card,
+    CardContent,
+    Avatar,
+    LinearProgress,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    Container,
 } from '@mui/material';
-import { Add, Edit, Delete } from '@mui/icons-material';
+import {
+    Add,
+    Search,
+    Edit,
+    Delete,
+    Inventory,
+    Warning,
+    AttachMoney,
+    Category,
+} from '@mui/icons-material';
+import { ExportButtons } from '../components/ui/ExportButtons';
+import { exportToCSV, exportToPDF } from '../utils/exportUtils';
 
 interface Product {
     id: string;
@@ -28,11 +49,12 @@ interface Product {
     category: string;
 }
 
-// Datos iniciales mock
 const initialProducts: Product[] = [
     { id: '1', name: 'Mouse Ergónico', sku: 'MSE-001', price: 45.99, stock: 8, category: 'Periféricos' },
     { id: '2', name: 'Cable HDMI 2.1', sku: 'HDMI-210', price: 19.99, stock: 5, category: 'Accesorios' },
     { id: '3', name: 'Teclado Mecánico', sku: 'TEC-001', price: 89.99, stock: 15, category: 'Periféricos' },
+    { id: '4', name: 'Monitor 24"', sku: 'MON-024', price: 199.99, stock: 3, category: 'Monitores' },
+    { id: '5', name: 'Webcam HD', sku: 'CAM-001', price: 59.99, stock: 12, category: 'Accesorios' },
 ];
 
 export const ProductManagement = () => {
@@ -46,17 +68,30 @@ export const ProductManagement = () => {
         stock: 0,
         category: '',
     });
+    const [searchTerm, setSearchTerm] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    // Cargar productos desde localStorage al montar
     useEffect(() => {
-        const stored = localStorage.getItem('products');
-        if (stored) {
-            setProducts(JSON.parse(stored));
-        } else {
-            setProducts(initialProducts);
-            localStorage.setItem('products', JSON.stringify(initialProducts));
-        }
+        setLoading(true);
+        setTimeout(() => {
+            const stored = localStorage.getItem('products');
+            if (stored) {
+                setProducts(JSON.parse(stored));
+            } else {
+                setProducts(initialProducts);
+                localStorage.setItem('products', JSON.stringify(initialProducts));
+            }
+            setLoading(false);
+        }, 500);
     }, []);
+
+    const filteredProducts = useMemo(() => {
+        return products.filter(product =>
+            product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            product.category.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [products, searchTerm]);
 
     const handleOpen = (product?: Product) => {
         if (product) {
@@ -83,12 +118,10 @@ export const ProductManagement = () => {
 
         let updatedProducts: Product[];
         if (editingProduct) {
-            // Editar
             updatedProducts = products.map(p =>
                 p.id === editingProduct.id ? { ...p, ...formData, id: p.id } as Product : p
             );
         } else {
-            // Crear nuevo
             const newProduct: Product = {
                 id: Date.now().toString(),
                 name: formData.name!,
@@ -104,69 +137,336 @@ export const ProductManagement = () => {
         handleClose();
     };
 
-    const handleDelete = (id: string) => {
-        if (window.confirm('¿Eliminar producto?')) {
-            const updated = products.filter(p => p.id !== id);
+    const handleDelete = (product: Product) => {
+        if (window.confirm('¿Estás seguro de eliminar este producto?')) {
+            const updated = products.filter(p => p.id !== product.id);
             setProducts(updated);
             localStorage.setItem('products', JSON.stringify(updated));
         }
     };
 
-    return (
-        <div>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h5">Gestión de Productos</Typography>
-                <Button variant="contained" startIcon={<Add />} onClick={() => handleOpen()}>
-                    Nuevo Producto
-                </Button>
-            </Stack>
+    const handleExportCSV = () => {
+        const columns = [
+            { id: 'name', label: 'Nombre' },
+            { id: 'sku', label: 'SKU' },
+            { id: 'price', label: 'Precio' },
+            { id: 'stock', label: 'Stock' },
+            { id: 'category', label: 'Categoría' },
+        ];
+        exportToCSV(filteredProducts, columns, 'productos');
+    };
 
-            <TableContainer component={Paper}>
-                <Table>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell>Nombre</TableCell>
-                            <TableCell>SKU</TableCell>
-                            <TableCell align="right">Precio</TableCell>
-                            <TableCell align="right">Stock</TableCell>
-                            <TableCell>Categoría</TableCell>
-                            <TableCell align="center">Acciones</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {products.map((product) => (
-                            <TableRow key={product.id}>
-                                <TableCell>{product.name}</TableCell>
-                                <TableCell>{product.sku}</TableCell>
-                                <TableCell align="right">${product.price.toFixed(2)}</TableCell>
-                                <TableCell align="right">{product.stock}</TableCell>
-                                <TableCell>{product.category}</TableCell>
-                                <TableCell align="center">
-                                    <IconButton color="primary" onClick={() => handleOpen(product)}>
-                                        <Edit />
-                                    </IconButton>
-                                    <IconButton color="error" onClick={() => handleDelete(product.id)}>
-                                        <Delete />
-                                    </IconButton>
-                                </TableCell>
+    const handleExportPDF = () => {
+        exportToPDF('Reporte de Productos');
+    };
+
+    const totalProducts = products.length;
+    const lowStock = products.filter(p => p.stock < 10).length;
+    const outOfStock = products.filter(p => p.stock === 0).length;
+    const totalValue = products.reduce((sum, p) => sum + (p.price * p.stock), 0);
+
+    return (
+        <Container maxWidth="xl" sx={{ py: 4 }}>
+            {/* Header con título principal */}
+            <Paper
+                elevation={0}
+                sx={{
+                    p: 4,
+                    mb: 4,
+                    borderRadius: 2,
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                }}
+            >
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Box>
+                        <Typography variant="h3" fontWeight="bold" gutterBottom>
+                            Productos
+                        </Typography>
+                        <Typography variant="h6" sx={{ opacity: 0.9 }}>
+                            Gestiona tu inventario y catálogo de productos
+                        </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={2}>
+                        <ExportButtons
+                            onExportCSV={handleExportCSV}
+                            onExportPDF={handleExportPDF}
+                            disabled={filteredProducts.length === 0}
+                        />
+                        <Button
+                            variant="contained"
+                            startIcon={<Add />}
+                            onClick={() => handleOpen()}
+                            sx={{
+                                borderRadius: 2,
+                                bgcolor: 'white',
+                                color: 'primary.main',
+                                py: 1.5,
+                                px: 3,
+                                '&:hover': {
+                                    bgcolor: 'rgba(255,255,255,0.9)',
+                                },
+                            }}
+                        >
+                            NUEVO PRODUCTO
+                        </Button>
+                    </Stack>
+                </Stack>
+            </Paper>
+
+            {/* Tarjetas de estadísticas */}
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+                <Grid item xs={12} sm={6} md={3}>
+                    <Card elevation={2} sx={{ borderRadius: 2 }}>
+                        <CardContent sx={{ p: 3 }}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                    <Typography color="text.secondary" gutterBottom variant="body2">
+                                        Total Productos
+                                    </Typography>
+                                    <Typography variant="h3" fontWeight="bold">
+                                        {totalProducts}
+                                    </Typography>
+                                </Box>
+                                <Avatar sx={{ bgcolor: 'primary.light', width: 56, height: 56 }}>
+                                    <Inventory sx={{ fontSize: 28 }} />
+                                </Avatar>
+                            </Stack>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={3}>
+                    <Card elevation={2} sx={{ borderRadius: 2 }}>
+                        <CardContent sx={{ p: 3 }}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                    <Typography color="text.secondary" gutterBottom variant="body2">
+                                        Stock Bajo
+                                    </Typography>
+                                    <Typography variant="h3" fontWeight="bold" color="warning.main">
+                                        {lowStock}
+                                    </Typography>
+                                </Box>
+                                <Avatar sx={{ bgcolor: 'warning.light', width: 56, height: 56 }}>
+                                    <Warning sx={{ fontSize: 28 }} />
+                                </Avatar>
+                            </Stack>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={3}>
+                    <Card elevation={2} sx={{ borderRadius: 2 }}>
+                        <CardContent sx={{ p: 3 }}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                    <Typography color="text.secondary" gutterBottom variant="body2">
+                                        Agotados
+                                    </Typography>
+                                    <Typography variant="h3" fontWeight="bold" color="error.main">
+                                        {outOfStock}
+                                    </Typography>
+                                </Box>
+                                <Avatar sx={{ bgcolor: 'error.light', width: 56, height: 56 }}>
+                                    <Delete sx={{ fontSize: 28 }} />
+                                </Avatar>
+                            </Stack>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={3}>
+                    <Card elevation={2} sx={{ borderRadius: 2 }}>
+                        <CardContent sx={{ p: 3 }}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                    <Typography color="text.secondary" gutterBottom variant="body2">
+                                        Valor Inventario
+                                    </Typography>
+                                    <Typography variant="h4" fontWeight="bold" color="success.main">
+                                        ${totalValue.toFixed(0)}
+                                    </Typography>
+                                </Box>
+                                <Avatar sx={{ bgcolor: 'success.light', width: 56, height: 56 }}>
+                                    <AttachMoney sx={{ fontSize: 28 }} />
+                                </Avatar>
+                            </Stack>
+                        </CardContent>
+                    </Card>
+                </Grid>
+            </Grid>
+
+            {/* Barra de búsqueda */}
+            <Paper sx={{ p: 3, mb: 3, borderRadius: 2 }}>
+                <Stack direction="row" spacing={2} alignItems="center">
+                    <TextField
+                        placeholder="Buscar productos por nombre, SKU o categoría..."
+                        variant="outlined"
+                        size="medium"
+                        fullWidth
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <Search color="action" />
+                                </InputAdornment>
+                            ),
+                            sx: { fontSize: '1rem', py: 1.5 }
+                        }}
+                    />
+                    <Chip
+                        label={`${filteredProducts.length} resultados`}
+                        color="primary"
+                        variant="outlined"
+                        sx={{ fontSize: '1rem', px: 2, py: 2 }}
+                    />
+                </Stack>
+            </Paper>
+
+            {/* Alerta de stock crítico */}
+            {lowStock > 0 && (
+                <Alert
+                    severity="warning"
+                    sx={{ mb: 3, borderRadius: 2, py: 2 }}
+                    action={
+                        <Button color="inherit" size="medium" sx={{ fontSize: '0.9rem' }}>
+                            Ver productos
+                        </Button>
+                    }
+                >
+                    <Typography variant="body1">
+                        Hay <strong>{lowStock} producto(s) con stock bajo</strong>. Revisa la tabla para más detalles.
+                    </Typography>
+                </Alert>
+            )}
+
+            {/* Tabla de productos personalizada */}
+            <Paper elevation={2} sx={{ borderRadius: 2, overflow: 'hidden' }}>
+                {loading && <LinearProgress />}
+                <TableContainer>
+                    <Table>
+                        <TableHead sx={{ bgcolor: '#f5f5f5' }}>
+                            <TableRow>
+                                <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', py: 3, px: 4 }}>Producto</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', py: 3, px: 4 }} align="right">Precio</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', py: 3, px: 4 }} align="center">Stock</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', py: 3, px: 4 }}>Categoría</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', py: 3, px: 4 }} align="center">Acciones</TableCell>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+                        </TableHead>
+                        <TableBody>
+                            {filteredProducts.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} align="center" sx={{ py: 8 }}>
+                                        <Typography variant="h6" color="text.secondary">
+                                            No hay productos para mostrar
+                                        </Typography>
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                filteredProducts.map((product) => (
+                                    <TableRow
+                                        key={product.id}
+                                        sx={{
+                                            '&:hover': { bgcolor: '#fafafa' },
+                                            '&:last-child td': { borderBottom: 0 }
+                                        }}
+                                    >
+                                        <TableCell sx={{ py: 3, px: 4 }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                <Avatar
+                                                    sx={{
+                                                        width: 48,
+                                                        height: 48,
+                                                        bgcolor: product.stock < 10 ? 'warning.light' : 'primary.light',
+                                                    }}
+                                                >
+                                                    {product.name.charAt(0)}
+                                                </Avatar>
+                                                <Box>
+                                                    <Typography variant="body1" fontWeight="bold" sx={{ mb: 0.5 }}>
+                                                        {product.name}
+                                                    </Typography>
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        {product.sku}
+                                                    </Typography>
+                                                </Box>
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell align="right" sx={{ py: 3, px: 4 }}>
+                                            <Typography variant="h6" fontWeight="bold" color="primary.main">
+                                                ${product.price.toFixed(2)}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell align="center" sx={{ py: 3, px: 4 }}>
+                                            <Chip
+                                                label={product.stock}
+                                                color={product.stock === 0 ? 'error' : product.stock < 10 ? 'warning' : 'success'}
+                                                sx={{
+                                                    fontWeight: 'bold',
+                                                    minWidth: 80,
+                                                    fontSize: '1rem',
+                                                    py: 2,
+                                                    '& .MuiChip-label': { px: 2 }
+                                                }}
+                                            />
+                                        </TableCell>
+                                        <TableCell sx={{ py: 3, px: 4 }}>
+                                            <Chip
+                                                label={product.category}
+                                                variant="outlined"
+                                                icon={<Category />}
+                                                sx={{ fontSize: '0.95rem', py: 1.5 }}
+                                            />
+                                        </TableCell>
+                                        <TableCell align="center" sx={{ py: 3, px: 4 }}>
+                                            <IconButton
+                                                color="primary"
+                                                onClick={() => handleOpen(product)}
+                                                sx={{ mr: 1, p: 1.5 }}
+                                            >
+                                                <Edit />
+                                            </IconButton>
+                                            <IconButton
+                                                color="error"
+                                                onClick={() => handleDelete(product)}
+                                                sx={{ p: 1.5 }}
+                                            >
+                                                <Delete />
+                                            </IconButton>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </Paper>
 
             {/* Modal de creación/edición */}
-            <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-                <DialogTitle>{editingProduct ? 'Editar Producto' : 'Nuevo Producto'}</DialogTitle>
-                <DialogContent dividers>
-                    <Stack spacing={2}>
+            <Dialog
+                open={open}
+                onClose={handleClose}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{ sx: { borderRadius: 2 } }}
+            >
+                <DialogTitle sx={{ p: 3, bgcolor: 'primary.main', color: 'white' }}>
+                    <Typography variant="h5">{editingProduct ? 'Editar Producto' : 'Nuevo Producto'}</Typography>
+                </DialogTitle>
+                <DialogContent dividers sx={{ p: 4 }}>
+                    <Stack spacing={3}>
                         <TextField
-                            label="Nombre"
+                            label="Nombre del producto"
                             name="name"
                             value={formData.name}
                             onChange={handleChange}
                             fullWidth
                             required
+                            variant="outlined"
+                            size="medium"
                         />
                         <TextField
                             label="SKU"
@@ -175,6 +475,8 @@ export const ProductManagement = () => {
                             onChange={handleChange}
                             fullWidth
                             required
+                            variant="outlined"
+                            size="medium"
                         />
                         <TextField
                             label="Precio"
@@ -183,6 +485,11 @@ export const ProductManagement = () => {
                             value={formData.price}
                             onChange={handleChange}
                             fullWidth
+                            variant="outlined"
+                            size="medium"
+                            InputProps={{
+                                startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                            }}
                         />
                         <TextField
                             label="Stock"
@@ -191,6 +498,8 @@ export const ProductManagement = () => {
                             value={formData.stock}
                             onChange={handleChange}
                             fullWidth
+                            variant="outlined"
+                            size="medium"
                         />
                         <TextField
                             label="Categoría"
@@ -198,14 +507,25 @@ export const ProductManagement = () => {
                             value={formData.category}
                             onChange={handleChange}
                             fullWidth
+                            variant="outlined"
+                            size="medium"
                         />
                     </Stack>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleClose}>Cancelar</Button>
-                    <Button onClick={handleSave} variant="contained">Guardar</Button>
+                <DialogActions sx={{ p: 3 }}>
+                    <Button onClick={handleClose} variant="outlined" size="large" sx={{ px: 4 }}>
+                        Cancelar
+                    </Button>
+                    <Button
+                        onClick={handleSave}
+                        variant="contained"
+                        size="large"
+                        sx={{ px: 4, py: 1.5 }}
+                    >
+                        {editingProduct ? 'Actualizar' : 'Crear'}
+                    </Button>
                 </DialogActions>
             </Dialog>
-        </div>
+        </Container>
     );
 };
