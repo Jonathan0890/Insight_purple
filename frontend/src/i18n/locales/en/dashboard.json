@@ -1,0 +1,17 @@
+{
+    "appTitle": "Insight Purple - Business Intelligence",
+    "configureAlerts": "Configure alerts",
+    "detailedAnalysis": "Detailed analysis",
+    "lastUpdated": "View updated {{minutes}} minutes ago",
+    "viewTitle": {
+        "ejecutivo": "Executive Dashboard",
+        "marketing": "Marketing Dashboard",
+        "ventas": "Sales Dashboard",
+        "inventario": "Inventory Dashboard"
+    },
+    "kpis": {
+        "totalRevenue": "Ingresos totales",
+        "generatedLeads": "Leads generados",
+        "conversionRate": "Tasa de conversión"
+    }
+}

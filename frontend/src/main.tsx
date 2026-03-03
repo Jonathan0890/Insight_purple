@@ -7,6 +7,7 @@ import { routes } from './router';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import 'dayjs/locale/es'
+import './i18n'; // Importa la configuración de i18n
 import { NotificationProvider } from './context/NotificationContext';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

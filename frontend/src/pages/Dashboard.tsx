@@ -16,6 +16,7 @@ import { LeadsChart } from '../components/charts/LeadsChart';
 import { DateRangeFilter } from '../components/ui/DateRangeFilter';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { ThemeCustomizer } from '../components/ui/ThemeCustomizer';
+import { useTranslation } from 'react-i18next';
 
 // Tipos internos
 interface KpiData {
@@ -26,6 +27,7 @@ interface KpiData {
     suffix?: string;
     trend?: 'up' | 'down' | 'neutral';
 }
+
 
 // Datos mock por rol (igual que antes)
 const roleData: Record<string, KpiData[]> = {
@@ -60,6 +62,8 @@ const roleData: Record<string, KpiData[]> = {
 };
 
 export const Dashboard = () => {
+    const { t } = useTranslation(["dashboard", "common"]);
+
     const [role, setRole] = useState('ejecutivo');
     const [data, setData] = useState<{ kpis: KpiData[] }>({ kpis: roleData.ejecutivo });
     const [from, setFrom] = useState(dayjs().startOf('month'));
@@ -84,7 +88,7 @@ export const Dashboard = () => {
             {/* Barra superior con título y botones de acción */}
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                 <Typography variant="h5" fontWeight="bold">
-                    Insight Purple - Business Intelligence
+                    {t("dashboard:appTitle")}
                 </Typography>
                 <Stack direction="row" spacing={1}>
                     <ReportExport />
@@ -104,10 +108,10 @@ export const Dashboard = () => {
             {/* Título de la vista y selector de rol + filtro de fechas */}
             <Box mb={3}>
                 <Typography variant="h4" fontWeight="bold" gutterBottom>
-                    Dashboard Ejecutivo
+                    {t(`dashboard:viewTitle.${role}`)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Vista Ejecutiva · Actualizado hace 2 minutos
+                    {t("dashboard:lastUpdated", { minutes: 2 })}
                 </Typography>
 
                 <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2} mt={2}>

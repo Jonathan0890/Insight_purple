@@ -16,7 +16,7 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import CampaignIcon from '@mui/icons-material/Campaign';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import DataUsageIcon from '@mui/icons-material/DataUsage';
-
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const drawerWidth = 260;
@@ -27,15 +27,16 @@ interface SidebarProps {
 }
 
 export const Sidebar = ({ mobileOpen, onClose }: SidebarProps) => {
+    const { t } = useTranslation("sidebar");
     const navigate = useNavigate();
     const location = useLocation();
 
     const menuItems = [
-        { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-        { text: 'Productos', icon: <InventoryIcon />, path: '/productos' },
-        { text: 'Campañas', icon: <CampaignIcon />, path: '/campanas' },
-        { text: 'Reglas de Alerta', icon: <NotificationsActiveIcon />, path: '/alertas' },
-        { text: 'Fuentes de Datos', icon: <DataUsageIcon />, path: '/fuentes' },
+        { key: 'dashboard', icon: <DashboardIcon />, path: '/' },
+        { key: 'productos', icon: <InventoryIcon />, path: '/productos' },
+        { key: 'campañas', icon: <CampaignIcon />, path: '/campanas' },
+        { key: 'alerta', icon: <NotificationsActiveIcon />, path: '/alertas' },
+        { key: 'sources', icon: <DataUsageIcon />, path: '/fuentes' },
     ];
 
     const handleNavigate = (path: string) => {
@@ -67,7 +68,7 @@ export const Sidebar = ({ mobileOpen, onClose }: SidebarProps) => {
                     const isActive = location.pathname === item.path;
 
                     return (
-                        <ListItem key={item.text} disablePadding sx={{ px: 1, mb: 0.5 }}>
+                        <ListItem key={item.key} disablePadding sx={{ px: 1, mb: 0.5 }}>
                             <ListItemButton
                                 onClick={() => handleNavigate(item.path)}
                                 selected={isActive}
@@ -95,7 +96,7 @@ export const Sidebar = ({ mobileOpen, onClose }: SidebarProps) => {
                                 </ListItemIcon>
 
                                 <ListItemText
-                                    primary={item.text}
+                                    primary={t(item.key)}
                                     primaryTypographyProps={{
                                         fontWeight: isActive ? 600 : 400,
                                     }}
