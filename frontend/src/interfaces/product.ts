@@ -1,4 +1,3 @@
-
 export interface Product {
     id: string;
     sku: string;
@@ -13,4 +12,16 @@ export interface Product {
     isActive: boolean;
     createdAt: string;
     updatedAt: string;
+}
+
+export type MovementType = "ENTRADA" | "SALIDA" | "AJUSTE";
+
+export interface InventoryMovement {
+    id: string;
+    productId: string;
+    type: MovementType;
+    quantity: number;
+    reason?: string;
+    reference?: string;
+    createdAt: string;
 }
