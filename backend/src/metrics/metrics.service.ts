@@ -1,26 +1,61 @@
 import { Injectable } from '@nestjs/common';
-import { CreateMetricDto } from './dto/create-metric.dto';
-import { UpdateMetricDto } from './dto/update-metric.dto';
+import { PrismaService } from 'prisma/prisma.service';
 
 @Injectable()
 export class MetricsService {
-  create(createMetricDto: CreateMetricDto) {
-    return 'This action adds a new metric';
+  constructor(private prisma: PrismaService) {}
+  async generateDailyMetrics(date: Date) {
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(date);
+    end.setHours(23, 59, 59, 999);
+
+    const [orders, revenue, customers] = await Promise.all([
+      this.prisma.order.count({
+        where: { date: { gte: start, lte: end } },
+      }),
+
+      this.prisma.order.aggregate({
+        where: { date: { gte: start, lte: end } },
+        _sum: { total: true },
+      }),
+
+      this.prisma.customer.count({
+        where: { createdAt: { gte: start, lte: end } },
+      }),
+    ]);
+
+    return this.prisma.metric.upsert({
+      where: {
+        date_userId: {
+          date: start,
+          userId: null,
+        },
+      },
+      update: {
+        revenue: revenue._sum.total ?? 0,
+        orders,
+        customers,
+      },
+      create: {
+        date: start,
+        revenue: revenue._sum.total ?? 0,
+        orders,
+        customers,
+      },
+    });
   }
 
-  findAll() {
-    return `This action returns all metrics`;
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} metric`;
-  }
-
-  update(id: number, updateMetricDto: UpdateMetricDto) {
-    return `This action updates a #${id} metric`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} metric`;
+  async getMetricsRange(start: Date, end: Date) {
+    return this.prisma.metric.findMany({
+      where: {
+        date: {
+          gte: start,
+          lte: end,
+        },
+      },
+      orderBy: { date: 'asc' },
+    });
   }
 }

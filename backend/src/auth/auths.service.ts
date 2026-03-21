@@ -1,27 +1,50 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { ConflictException, Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import * as jwt from 'jsonwebtoken';
 import { UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from 'prisma/prisma.service';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
 export class AuthsService {
-  async register(email: string, password: string) {
-    const hashed = await bcrypt.hash(password, 10);
+  constructor(
+    private prisma: PrismaService,
+    private jwt: JwtService,
+  ) { }
+
+  async register(dto: RegisterDto) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (existingUser) {
+      throw new ConflictException('User already exists');
+    }
+
+    const hashed = await bcrypt.hash(dto.password, 10);
 
     const user = await this.prisma.user.create({
-      data: { email, password: hashed },
+      data: {
+        email: dto.email,
+        password: hashed,
+        name: dto.name,
+      },
     });
 
     return this.signToken(user);
   }
 
-  async login(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) throw new UnauthorizedException();
+  async login(dto: LoginDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
 
-    const valid = await bcrypt.compare(password, user.password);
-    if (!valid) throw new UnauthorizedException();
+    if (!user) throw new UnauthorizedException('Invalid credentials');
+
+    const valid = await bcrypt.compare(dto.password, user.password);
+
+    if (!valid) throw new UnauthorizedException('Invalid credentials');
 
     return this.signToken(user);
   }
@@ -31,7 +54,7 @@ export class AuthsService {
       access_token: this.jwt.sign({
         sub: user.id,
         email: user.email,
-        role: user.role,
+        role: user.role?.name,
       }),
     };
   }

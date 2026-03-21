@@ -1,59 +1,344 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  role      Role     @default(USER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+//////////////////////
+// ENUMS
+//////////////////////
 
-  integrations Integration[]
-}
-
-model Integration {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  platform    Platform
-  credentials String   // Almacenará JSON encriptado
-  isActive    Boolean  @default(true)
-  lastSync    DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  metrics     Metric[]
-
-  @@unique([userId, platform])
-}
-
-model Metric {
-  id            String   @id @default(uuid())
-  integrationId String
-  integration   Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
-  name          String
-  value         Float
-  date          DateTime
-  metadata      Json?
-  createdAt     DateTime @default(now())
-
-  @@index([integrationId, date])
-}
-
-enum Role {
-  USER
+enum RoleName {
   ADMIN
+  MARKETING
+  VENTAS
+  INVENTARIO
+  EJECUTIVO
+  USER
 }
 
 enum Platform {
-  GoogleAnalytics
-  MetaAds
-  CRM
+  GOOGLE_ADS
+  META_ADS
+  LINKEDIN
+  TIKTOK
+  EMAIL
+  SHOPIFY
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+  ENDED
+  DRAFT
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  REFUNDED
+}
+
+enum MovementType {
+  ENTRADA
+  SALIDA
+  AJUSTE
+}
+
+enum InteractionType {
+  CALL
+  EMAIL
+  MEETING
+  NOTE
+  TASK
+  PURCHASE
+}
+
+//////////////////////
+// USERS & ROLES
+//////////////////////
+
+model Role {
+  id        String   @id @default(cuid())
+  name      RoleName @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     User[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  isActive  Boolean  @default(true)
+  lastLogin DateTime?
+  
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id])
+
+  // Relaciones
+  settings           UserSettings?
+  campaigns          Campaign[]
+  orders             Order[]               @relation("CreatedOrders")
+  assignedCustomers  Customer[]            @relation("AssignedCustomers")
+  inventoryMovements InventoryMovement[]
+  interactions       CustomerInteraction[]
+  alertRules         AlertRule[]
+  kpiTargets         KpiTarget[]
+  auditLogs          AuditLog[]
+  sessions           Session[]
+  metrics            Metric[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UserSettings {
+  id            String  @id @default(cuid())
+  userId        String  @unique
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme         String? @default("light")
+  notifications Boolean @default(true)
+  language      String  @default("es")
+}
+
+//////////////////////
+// CUSTOMERS
+//////////////////////
+
+model Customer {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  name      String
+  phone     String?
+  company   String?
+  address   String?
+  notes     String?
+  
+  status    CustomerStatus @default(ACTIVE)
+  
+  assignedTo String?
+  assignedUser User?       @relation("AssignedCustomers", fields: [assignedTo], references: [id])
+
+  orders       Order[]
+  interactions CustomerInteraction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  LEAD
+  CHURNED
+}
+
+//////////////////////
+// PRODUCTS & INVENTORY
+//////////////////////
+
+model Product {
+  id          String   @id @default(cuid())
+  sku         String   @unique
+  name        String
+  description String?
+  price       Float
+  cost        Float?
+  stock       Int      @default(0)
+  minStock    Int?
+  isActive    Boolean  @default(true)
+
+  orderItems  OrderItem[]
+  movements   InventoryMovement[]
+  alerts      ProductAlert[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model InventoryMovement {
+  id        String       @id @default(cuid())
+  productId String
+  product   Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  type      MovementType
+  quantity  Int
+  reason    String?
+  
+  userId    String?
+  user      User?        @relation(fields: [userId], references: [id])
+
+  createdAt DateTime     @default(now())
+}
+
+model ProductAlert {
+  id           String    @id @default(cuid())
+  productId    String
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  threshold    Int
+  currentStock Int
+  resolved     Boolean   @default(false)
+
+  createdAt    DateTime  @default(now())
+}
+
+//////////////////////
+// SALES & ORDERS
+//////////////////////
+
+model Order {
+  id            String        @id @default(cuid())
+  orderNumber   String        @unique
+  customerId    String
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  
+  userId        String?
+  createdBy     User?         @relation("CreatedOrders", fields: [userId], references: [id])
+  
+  status        OrderStatus   @default(PENDING)
+  paymentStatus PaymentStatus @default(PENDING)
+  
+  subtotal      Float
+  tax           Float
+  total         Float         @default(0)
+  discount      Float         @default(0)
+  
+  items         OrderItem[]
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  productId  String
+  product    Product @relation(fields: [productId], references: [id])
+  
+  quantity   Int
+  unitPrice  Float
+  totalPrice Float
+  discount   Float   @default(0)
+}
+
+//////////////////////
+// MARKETING
+//////////////////////
+
+model Campaign {
+  id          String         @id @default(cuid())
+  name        String
+  platform    Platform
+  budget      Float
+  spent       Float          @default(0)
+  revenue     Float          @default(0)
+  conversions Int            @default(0)
+  status      CampaignStatus @default(ACTIVE)
+
+  startDate   DateTime
+  endDate     DateTime?
+
+  userId      String
+  createdBy   User           @relation(fields: [userId], references: [id])
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model CustomerInteraction {
+  id          String          @id @default(cuid())
+  customerId  String
+  customer    Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  type        InteractionType
+  description String?
+  
+  userId      String?
+  user        User?           @relation(fields: [userId], references: [id])
+  
+  createdAt   DateTime        @default(now())
+}
+
+//////////////////////
+// BI & METRICS 🔥
+//////////////////////
+
+model Metric {
+  id             String   @id @default(cuid())
+  date           DateTime
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id])
+
+  revenue        Float    @default(0)
+  ordersCount    Int      @default(0)
+  customersCount Int      @default(0)
+  
+  conversionRate Float    @default(0)
+  ctr            Float    @default(0)
+  cpl            Float    @default(0)
+
+  createdAt      DateTime @default(now())
+
+  @@unique([date, userId])
+}
+
+model KpiTarget {
+  id          String   @id @default(cuid())
+  name        String
+  metric      String
+  targetValue Float
+  
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AlertRule {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+//////////////////////
+// SYSTEM
+//////////////////////
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  createdAt DateTime @default(now())
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }

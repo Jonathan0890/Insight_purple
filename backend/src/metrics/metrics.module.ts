@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
 import { MetricsService } from './metrics.service';
 import { MetricsController } from './metrics.controller';
+import { PrismaService } from 'prisma/prisma.service';
 
 @Module({
   controllers: [MetricsController],
-  providers: [MetricsService],
+  providers: [MetricsService, PrismaService],
+  exports: [MetricsService],
 })
 export class MetricsModule {}

@@ -5,38 +5,71 @@ import { PrismaService } from 'prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
+
 @Injectable()
 export class IntegrationsService {
-  private encryptionKey: string;
-  private algoritm = 'aes-256-gcm';
+  private algorithm = 'aes-256-gcm';
+  private encryptionKey: Buffer;
 
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
   ) {
-    this.encryptionKey = this.config.get('ENCRYPTION_KEY');
-  }
-  private encrypt(text: string): string {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(this.algorithm, Buffer.from(this.encryptionKey, 'hex'), iv);
-    const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
-    const authTag = cipher.getAuthTag();
-    return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted.toString('hex');
+    const key = this.config.get<string>('ENCRYPTION_KEY');
+
+    if (!key) {
+      throw new Error('ENCRYPTION_KEY no está definida');
+    }
+
+    this.encryptionKey = Buffer.from(key, 'hex');
   }
 
+  // 🔐 ENCRYPT
+  private encrypt(text: string): string {
+    const iv = crypto.randomBytes(16);
+
+    const cipher = crypto.createCipheriv(
+      this.algorithm,
+      this.encryptionKey,
+      iv,
+    ) as crypto.CipherGCM;
+
+    const encrypted = Buffer.concat([
+      cipher.update(text, 'utf8'),
+      cipher.final(),
+    ]);
+
+    const authTag = cipher.getAuthTag();
+
+    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted.toString('hex')}`;
+  }
+
+  // 🔓 DECRYPT
   private decrypt(encryptedText: string): string {
-    const parts = encryptedText.split(':');
-    const iv = Buffer.from(parts.shift(), 'hex');
-    const authTag = Buffer.from(parts.shift(), 'hex');
-    const encrypted = Buffer.from(parts.join(':'), 'hex');
-    const decipher = crypto.createDecipheriv(this.algorithm, Buffer.from(this.encryptionKey, 'hex'), iv);
+    const [ivHex, authTagHex, encryptedHex] = encryptedText.split(':');
+
+    const iv = Buffer.from(ivHex, 'hex');
+    const authTag = Buffer.from(authTagHex, 'hex');
+    const encrypted = Buffer.from(encryptedHex, 'hex');
+
+    const decipher = crypto.createDecipheriv(
+      this.algorithm,
+      this.encryptionKey,
+      iv,
+    ) as crypto.DecipherGCM; // 👈 🔥 FIX CLAVE
+
     decipher.setAuthTag(authTag);
-    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+
+    const decrypted = Buffer.concat([
+      decipher.update(encrypted),
+      decipher.final(),
+    ]);
+
     return decrypted.toString('utf8');
   }
 
+  // 🟢 CREATE
   async create(userId: string, dto: CreateIntegrationDto) {
-    // Verificar si ya existe una integración para esa plataforma
     const existing = await this.prisma.integration.findUnique({
       where: {
         userId_platform: {
@@ -48,12 +81,14 @@ export class IntegrationsService {
 
     if (existing) {
       throw new HttpException(
-        `Ya existe una integración para la plataforma ${dto.platform}`,
+        `Ya existe una integración para ${dto.platform}`,
         HttpStatus.CONFLICT,
       );
     }
 
-    const encryptedCredentials = this.encrypt(JSON.stringify(dto.credentials));
+    const encryptedCredentials = this.encrypt(
+      JSON.stringify(dto.credentials),
+    );
 
     const integration = await this.prisma.integration.create({
       data: {
@@ -63,13 +98,13 @@ export class IntegrationsService {
       },
     });
 
-    // No devolvemos las credenciales en la respuesta
     const { credentials, ...result } = integration;
     return result;
   }
 
+  // 📄 FIND ALL
   async findAll(userId: string) {
-    const integrations = await this.prisma.integration.findMany({
+    return this.prisma.integration.findMany({
       where: { userId },
       select: {
         id: true,
@@ -78,32 +113,34 @@ export class IntegrationsService {
         lastSync: true,
         createdAt: true,
         updatedAt: true,
-        // Excluimos credentials explícitamente
       },
     });
-    return integrations;
   }
 
+  // 🔍 FIND ONE
   async findOne(userId: string, id: string) {
     const integration = await this.prisma.integration.findFirst({
       where: { id, userId },
     });
 
     if (!integration) {
-      throw new HttpException('Integración no encontrada', HttpStatus.NOT_FOUND);
+      throw new HttpException(
+        'Integración no encontrada',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     const { credentials, ...result } = integration;
     return result;
   }
 
+  // ✏️ UPDATE
   async update(userId: string, id: string, dto: UpdateIntegrationDto) {
-    // Verificar que existe y pertenece al usuario
     await this.findOne(userId, id);
 
     const data: any = {};
+
     if (dto.platform) {
-      // Si cambia la plataforma, verificar que no haya conflicto con otra
       const existing = await this.prisma.integration.findUnique({
         where: {
           userId_platform: {
@@ -112,16 +149,21 @@ export class IntegrationsService {
           },
         },
       });
+
       if (existing && existing.id !== id) {
         throw new HttpException(
-          `Ya existe otra integración para la plataforma ${dto.platform}`,
+          `Ya existe otra integración para ${dto.platform}`,
           HttpStatus.CONFLICT,
         );
       }
+
       data.platform = dto.platform;
     }
+
     if (dto.credentials) {
-      data.credentials = this.encrypt(JSON.stringify(dto.credentials));
+      data.credentials = this.encrypt(
+        JSON.stringify(dto.credentials),
+      );
     }
 
     const updated = await this.prisma.integration.update({
@@ -133,20 +175,48 @@ export class IntegrationsService {
     return result;
   }
 
+  // ❌ DELETE
   async remove(userId: string, id: string) {
     await this.findOne(userId, id);
-    await this.prisma.integration.delete({ where: { id } });
+
+    await this.prisma.integration.delete({
+      where: { id },
+    });
+
     return { message: 'Integración eliminada correctamente' };
   }
 
-  // Método interno para obtener credenciales desencriptadas (lo usarán los sincronizadores)
+  // 🔐 INTERNAL
   async getDecryptedCredentials(userId: string, id: string) {
     const integration = await this.prisma.integration.findFirst({
       where: { id, userId },
     });
+
     if (!integration) {
-      throw new HttpException('Integración no encontrada', HttpStatus.NOT_FOUND);
+      throw new HttpException(
+        'Integración no encontrada',
+        HttpStatus.NOT_FOUND,
+      );
     }
+
     return JSON.parse(this.decrypt(integration.credentials));
+  }
+
+  // 🔄 SYNC
+  async syncIntegration(userId: string, id: string) {
+    const credentials = await this.getDecryptedCredentials(userId, id);
+
+    // 👉 Aquí conectarías APIs externas
+    // Ej: Meta Ads, Google Ads, Shopify, etc
+
+    await this.prisma.integration.update({
+      where: { id },
+      data: { lastSync: new Date() },
+    });
+
+    return {
+      message: 'Sincronización completada',
+      credentialsUsed: Object.keys(credentials),
+    };
   }
 }

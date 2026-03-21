@@ -1,26 +1,115 @@
 import { Injectable } from '@nestjs/common';
-import { CreateDashboardDto } from './dto/create-dashboard.dto';
-import { UpdateDashboardDto } from './dto/update-dashboard.dto';
+import { PrismaService } from 'prisma/prisma.service';
 
 @Injectable()
 export class DashboardService {
-  create(createDashboardDto: CreateDashboardDto) {
-    return 'This action adds a new dashboard';
-  }
+  constructor(private prisma: PrismaService) { }
+  async getExecutiveDashboard(
+    userId: string,
+    startDate?: Date,
+    endDate?: Date,
+  ) {
+    const end = endDate ?? new Date();
+    const start =
+      startDate ?? new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  findAll() {
-    return `This action returns all dashboard`;
-  }
+    const [
+      totalRevenue,
+      totalOrders,
+      totalCustomers,
+      topProducts,
+      campaignPerformance,
+      inventoryAlerts,
+    ] = await Promise.all([
+      // 💰 REVENUE (usa totalPrice correctamente)
+      this.prisma.orderItem.aggregate({
+        where: {
+          order: {
+            date: { gte: start, lte: end },
+            status: 'COMPLETED',
+          },
+        },
+        _sum: { totalPrice: true },
+      }),
 
-  findOne(id: number) {
-    return `This action returns a #${id} dashboard`;
-  }
+      // 📦 Órdenes
+      this.prisma.order.count({
+        where: {
+          date: { gte: start, lte: end },
+        },
+      }),
 
-  update(id: number, updateDashboardDto: UpdateDashboardDto) {
-    return `This action updates a #${id} dashboard`;
-  }
+      // 👥 Clientes
+      this.prisma.customer.count({
+        where: {
+          createdAt: { gte: start, lte: end },
+        },
+      }),
 
-  remove(id: number) {
-    return `This action removes a #${id} dashboard`;
+      // 🏆 Top productos
+      this.prisma.orderItem.groupBy({
+        by: ['productId'],
+        _sum: { quantity: true },
+        orderBy: {
+          _sum: { quantity: 'desc' },
+        },
+        take: 5,
+        where: {
+          order: {
+            date: { gte: start, lte: end },
+            status: 'COMPLETED',
+          },
+        },
+      }),
+
+      // 📢 Campañas
+      this.prisma.campaign.findMany({
+        where: {
+          startDate: { lte: end },
+          endDate: { gte: start },
+        },
+        select: {
+          id: true,
+          name: true,
+          platform: true,
+          spent: true,
+          revenue: true,
+          conversions: true,
+        },
+      }),
+
+      // ⚠️ Alertas
+      this.prisma.productAlert.count({
+        where: { resolved: false },
+      }),
+    ]);
+
+    // 🔗 Mapear productos
+    const productIds = topProducts.map((p) => p.productId);
+
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true, sku: true },
+    });
+
+    const productsMap = new Map(products.map((p) => [p.id, p]));
+
+    return {
+      period: { start, end },
+
+      revenue: totalRevenue._sum.totalPrice ?? 0,
+      orders: totalOrders,
+      customers: totalCustomers,
+
+      topProducts: topProducts.map((p) => ({
+        productId: p.productId,
+        quantity: p._sum.quantity ?? 0,
+        product: productsMap.get(p.productId) ?? null,
+      })),
+
+      campaigns: campaignPerformance,
+
+      alerts: inventoryAlerts,
+    };
   }
 }

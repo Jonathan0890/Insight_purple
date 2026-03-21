@@ -10,27 +10,36 @@ export class IntegrationsController {
   constructor(private readonly integrationsService: IntegrationsService) { }
 
   @Post()
-  create(@Request() req, @Body() createIntegrationDto: CreateIntegrationDto) {
-    return this.integrationsService.create(req.user.id, createIntegrationDto);
+  create(@Request() req, @Body() dto: CreateIntegrationDto) {
+    return this.integrationsService.create(req.user.sub, dto);
   }
 
   @Get()
   findAll(@Request() req) {
-    return this.integrationsService.findAll(req.user.id);
+    return this.integrationsService.findAll(req.user.sub);
   }
 
   @Get(':id')
   findOne(@Request() req, @Param('id') id: string) {
-    return this.integrationsService.findOne(req.user.id, id);
+    return this.integrationsService.findOne(req.user.sub, id);
   }
 
   @Patch(':id')
-  update(@Request() req, @Param('id') id: string, @Body() updateIntegrationDto: UpdateIntegrationDto) {
-    return this.integrationsService.update(req.user.id, id, updateIntegrationDto);
+  update(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() dto: UpdateIntegrationDto,
+  ) {
+    return this.integrationsService.update(req.user.sub, id, dto);
   }
 
   @Delete(':id')
   remove(@Request() req, @Param('id') id: string) {
-    return this.integrationsService.remove(req.user.id, id);
+    return this.integrationsService.remove(req.user.sub, id);
+  }
+
+  @Post(':id/sync')
+  sync(@Request() req, @Param('id') id: string) {
+    return this.integrationsService.syncIntegration(req.user.sub, id);
   }
 }
